@@ -10,7 +10,7 @@ use App\Models\Article;
 class ScrapeBeyondChatsBlogs extends Command
 {
     protected $signature = 'scrape:beyondchats';
-    protected $description = 'Automatically scrape last end 5 oldest BeyondChats blog articles from last page';
+    protected $description = 'Automatically scrape 5 oldest BeyondChats blog articles from last page';
 
     public function handle()
     {
@@ -57,8 +57,8 @@ class ScrapeBeyondChatsBlogs extends Command
         /* -------------------------------------------------
            STEP 4: Clear old database records
         --------------------------------------------------*/
-        Article::truncate();
-        $this->info('Old articles cleared from database');
+        // Article::truncate();
+        // $this->info('Old articles cleared from database');
 
         /* -------------------------------------------------
            STEP 5: Scrape article detail pages + store
@@ -79,17 +79,30 @@ class ScrapeBeyondChatsBlogs extends Command
 
             /* -------- Fetch article content -------- */
             try {
-                $articleResponse = $client->request('GET', $url);
-                $articleHtml = $articleResponse->getContent();
-                $articleCrawler = new Crawler($articleHtml);
-
-                $content = $articleCrawler->filter('.entry-content')->count()
-                    ? trim($articleCrawler->filter('.entry-content')->text())
-                    : 'Content not found';
-
+                $response = $client->request('GET', $url, [
+                    'headers' => [
+                        'User-Agent' => 'Mozilla/5.0'
+                    ]
+                ]);
+            
+                $html = $response->getContent();
+                $crawler = new Crawler($html);
+            
+                $paragraphs = $crawler->filter('p');
+            
+                if ($paragraphs->count()) {
+                    $content = '';
+                    foreach ($paragraphs as $p) {
+                        $content .= trim($p->textContent) . "\n\n";
+                    }
+                } else {
+                    $content = 'Content not found';
+                }
+            
             } catch (\Exception $e) {
                 $content = 'Failed to fetch content';
             }
+            
 
             /* -------- Store in database -------- */
             Article::create([
